@@ -4,7 +4,7 @@
 __author__ = "Sven Sager"
 __copyright__ = "Copyright (C) KUNBUS GmbH"
 __license__ = "GPLv2"
-__version__ = "1.0.0"
+__version__ = "1.0.3"
 
 import json
 import sys
@@ -45,13 +45,10 @@ parser.add_argument(
 )
 parser.add_argument(
     "-s", "--seconds", dest="seconds", type=int, default=30,
-    help="Measurement time in seconds (1 - 300)",
+    choices=range(1, 301), metavar="1-300",
+    help="Measurement time in seconds",
 )
 command_arguments = parser.parse_args()
-
-# Check argument values
-if not 1 <= command_arguments.seconds <= 300:
-    raise ValueError("Argument --seconds must be between 1 and 300")
 
 # Global variables
 que_measurement_data = Queue()
