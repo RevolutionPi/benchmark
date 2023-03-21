@@ -4,13 +4,13 @@
 
 import ipaddress
 
-from revpi_stress_tester import tools
-from revpi_stress_tester.worker import Worker
+from . import Worker
+from .. import tools
 
 
 class IPerf3Worker(Worker):
-    def __init__(self, args: list):
-        super(IPerf3Worker, self).__init__(["iperf3"] + args)
+    def __init__(self, *args):
+        super().__init__("iperf3", *args)
 
 
 class IPerf3ServerWorker(IPerf3Worker):
@@ -18,7 +18,7 @@ class IPerf3ServerWorker(IPerf3Worker):
         args = ["-s"]
         for ip in tools.get_ip_addresses(interface):
             args += ["-B", ip]
-        super().__init__(args)
+        super().__init__(*args)
         self.name = f"iperf3_server_{interface}"
 
 
@@ -29,7 +29,7 @@ class IPerf3ClientWorker(IPerf3Worker):
         except ipaddress.AddressValueError:
             raise Exception(f"Invalid IP address format for iperf3 server: {server_ip}")
 
-        super().__init__(["-c", str(ip)])
+        super().__init__("-c", str(ip))
         self.name = f"iperf3_client_{ip}"
 
     def run(self):

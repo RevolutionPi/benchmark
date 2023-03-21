@@ -4,8 +4,8 @@
 
 import os
 
-from revpi_stress_tester import tools
-from revpi_stress_tester.worker import Worker
+from . import Worker
+from .. import tools
 
 
 class CyclicTestWorker(Worker):
@@ -25,7 +25,7 @@ class CyclicTestWorker(Worker):
             str(interval),
         ]
 
-        super(CyclicTestWorker, self).__init__(["cyclictest"] + args)
+        super(CyclicTestWorker, self).__init__("cyclictest", *args)
 
         self.log = log
 
@@ -39,7 +39,7 @@ class CyclicTestWorker(Worker):
         cpu_cores = os.cpu_count()
 
         csv_headers = ["latency"]
-        csv_headers += [f"count_core{number+1}" for number in range(cpu_cores)]
+        csv_headers += [f"count_core{number + 1}" for number in range(cpu_cores)]
 
         tools.save_csv_log(
             self.log,

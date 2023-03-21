@@ -9,45 +9,12 @@ __license__ = "MIT"
 
 import argparse
 import getpass
+import signal
 import sys
 import threading
 
-from revpi_stress_tester import tools
-from revpi_stress_tester.worker import (
-    WorkerExecutableNotFound,
-    iperf3,
-    rt,
-    Worker,
-    stress,
-)
-
-
-def interval_type(value):
-    try:
-        value = int(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError("Interval must be a number")
-
-    if value < 1:
-        raise argparse.ArgumentTypeError("Minimum interval is 1 seconds")
-    elif value > 60:
-        raise argparse.ArgumentTypeError("Maximum interval is 60 seconds")
-
-    return value
-
-
-def rt_prio_type(value):
-    try:
-        value = int(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError("RT priority must be a number")
-
-    if value < 1:
-        raise argparse.ArgumentTypeError("Minimum RT priority is 1")
-    elif value > 100:
-        raise argparse.ArgumentTypeError("Maximum RT priority is 100")
-
-    return value
+from . import tools
+from .worker import Worker, WorkerExecutableNotFound, iperf3, rt, stress
 
 
 def parse_arguments():
@@ -56,6 +23,7 @@ def parse_arguments():
     parser_stress = parser.add_argument_group("stress-ng specific options")
     parser_stress.add_argument(
         "-c",
+        default=0,
         dest="stress_num_cpu_cores",
         metavar="NUMBER_CPU_CORES",
         type=int,
@@ -66,12 +34,16 @@ def parse_arguments():
     parser_iperf3.add_argument(
         "-n",
         action="append",
+        default=[],
+        type=list,
         dest="iperf3_server_interfaces",
         help="Interfaces on which an iperf3 server should listen",
     )
     parser_iperf3.add_argument(
         "-N",
         action="append",
+        default=[],
+        type=list,
         dest="iperf3_client_ips",
         help="IPs a iperf3 client should connect to",
     )
@@ -79,7 +51,9 @@ def parse_arguments():
     parser_rt = parser.add_argument_group("rt-tests specific options")
     parser_rt.add_argument(
         "-p",
-        type=rt_prio_type,
+        choices=range(1, 101),
+        metavar="1-100",
+        type=int,
         default=90,
         dest="rt_prio",
         help="The RT priority with which cyclictest is run",
@@ -95,7 +69,9 @@ def parse_arguments():
     parser.add_argument(
         "-i",
         dest="monitor_interval",
-        type=interval_type,
+        choices=range(1, 61),
+        metavar="1-60",
+        type=int,
         default=1,
         help="Interval between each metric measurement",
     )
@@ -106,10 +82,17 @@ def parse_arguments():
         help="""A log file where the CSV output ofthe performance
         metrics will be written to""",
     )
+    parser.add_argument(
+        "--no-root",
+        action="store_false",
+        dest="check_root",
+        default=True,
+        help="Do not check for root user. This will fail with your tests.",
+    )
 
     args = parser.parse_args()
 
-    if getpass.getuser() != "root":
+    if args.check_root and getpass.getuser() != "root":
         parser.error("Program needs to be run as superuser root")
 
     return args
@@ -117,11 +100,10 @@ def parse_arguments():
 
 class CLI:
     def __init__(
-        self,
-        monitor_interval: int = 1,
-        log_file: str = None,
-        histogram_file: str = None,
-    ) -> None:
+            self,
+            monitor_interval: int = 1,
+            log_file: str = None,
+            histogram_file: str = None) -> None:
         self.worker_list = []
         self.stop_event = threading.Event()
 
@@ -133,42 +115,31 @@ class CLI:
         self.worker_list.append(worker)
 
     def run(self) -> int:
-        try:
-            for worker in self.worker_list:
-                worker.start(self.stop_event)
+        for worker in self.worker_list:
+            worker.start()
 
-            monitor = tools.PerformanceMonitor()
-            print(",".join(monitor.headers()))
+        monitor = tools.PerformanceMonitor()
+        print(",".join(monitor.headers()))
 
-            performance_metrics = []
-            while not self.stop_event.wait(self.monitor_interval):
-                performance_metrics.append(monitor.metrics())
+        performance_metrics = []
+        while not self.stop_event.wait(self.monitor_interval):
+            performance_metrics.append(monitor.metrics())
 
-                print(",".join(map(str, performance_metrics[-1])))
+            print(",".join(map(str, performance_metrics[-1])))
 
-        except WorkerExecutableNotFound as we:
-            print(
-                "Dependency missing: "
-                + f"Could not find executable '{we.executable}' in PATH. "
-                + "Please refer to setup instructions.",
-                file=sys.stderr,
+        if self.log_file:
+            tools.save_csv_log(
+                self.log_file,
+                performance_metrics,
+                tools.PerformanceMonitor.headers(),
             )
 
-            return 1
-        except KeyboardInterrupt:
-            self.stop_event.set()
+        for worker in self.worker_list:
+            worker.stop()
+        for worker in self.worker_list:
+            worker.join()
 
-            if self.log_file:
-                tools.save_csv_log(
-                    self.log_file,
-                    performance_metrics,
-                    tools.PerformanceMonitor.headers(),
-                )
-
-            for worker in self.worker_list:
-                worker.join()
-
-            return 0
+        return 0
 
 
 def main() -> int:
@@ -176,18 +147,32 @@ def main() -> int:
 
     cli = CLI(args.monitor_interval, args.log_file, args.histogram_file)
 
-    if args.stress_num_cpu_cores is not None:
-        cli.add_worker(stress.StressCPUWorker(args.stress_num_cpu_cores))
+    # Catch events to set the stop signal from control+c or SIGINT from OS
+    signal.signal(signal.SIGINT, lambda n, f: cli.stop_event.set())
+    signal.signal(signal.SIGTERM, lambda n, f: cli.stop_event.set())
 
-    if args.iperf3_server_interfaces is not None:
+    try:
+        if args.stress_num_cpu_cores > 0:
+            cli.add_worker(stress.StressCPUWorker(args.stress_num_cpu_cores))
+
         for interface in args.iperf3_server_interfaces:
             cli.add_worker(iperf3.IPerf3ServerWorker(interface))
 
-    if args.iperf3_client_ips is not None:
-        for ip in args.iperf3_server_interfaces:
+        for ip in args.iperf3_client_ips:
             cli.add_worker(iperf3.IPerf3ClientWorker(ip))
 
-    if args.histogram_file:
-        cli.add_worker(rt.CyclicTestWorker(args.rt_prio, args.histogram_file))
+        if args.histogram_file:
+            cli.add_worker(rt.CyclicTestWorker(args.rt_prio, args.histogram_file))
+
+    except WorkerExecutableNotFound as we:
+        # This will happen, if the worker can not find the test command on the system
+        print(
+            "Dependency missing: "
+            + f"Could not find executable '{we.executable}' in PATH. "
+            + "Please refer to setup instructions.",
+            file=sys.stderr,
+        )
+
+        return 1
 
     return cli.run()

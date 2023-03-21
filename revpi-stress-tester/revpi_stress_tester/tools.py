@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: MIT
 # Copyright 2023 KUNBUS GmbH
 
+import csv
 import socket
 import subprocess
 import time
 
-import csv
 import psutil
 
 
@@ -30,7 +30,7 @@ class PerformanceMonitor:
 
     @staticmethod
     def headers():
-        return ("time", "cpu_temperature", "cpu_clock_speed", "cpu_throttled")
+        return "time", "cpu_temperature", "cpu_clock_speed", "cpu_throttled"
 
     def metrics(self):
         return [int(time.time()), self.temperature, self.clock_speed, self.throttled]

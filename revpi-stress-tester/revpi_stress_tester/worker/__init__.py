@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import threading
+from subprocess import TimeoutExpired
 
 
 class WorkerExecutableNotFound(Exception):
@@ -17,22 +18,27 @@ class WorkerExecutableNotFound(Exception):
 
 
 class Worker(threading.Thread):
-    def __init__(self, cmd: list):
-        super(Worker, self).__init__(daemon=True)
-        self.cmd = cmd
+    def __init__(self, cmd, *cmd_args):
+        """
+        Base worker class, which all worker must inherit from.
+
+        :param cmd: Command to execute for this worker
+        :param cmd_args: Arguments to pass to command
+        """
+        super().__init__(daemon=True)
+        self.cmd = [cmd] + list(cmd_args)
         self.name = "worker"
         self.stdout = None
         self.stderr = None
-        self.stop_event = None
+        self.stop_event = threading.Event()
 
         # check if executable can be found in PATH
         if not distutils.spawn.find_executable(self.cmd[0]):
             raise WorkerExecutableNotFound(self.cmd)
 
-    def start(self, stop_event: threading.Event) -> None:
-        self.stop_event = stop_event
-
-        return super().start()
+    def stop(self) -> None:
+        """Stop this worker."""
+        self.stop_event.set()
 
     def run(self):
         proc = None
@@ -54,6 +60,11 @@ class Worker(threading.Thread):
 
         # gracefully stop program
         proc.send_signal(signal.SIGTERM)
+        try:
+            proc.wait(5.0)
+        except TimeoutExpired:
+            # Program not terminates in 5 seconds, so we kill it now
+            proc.kill()
 
         # save stdout and stderr output for later usage
         self.stdout = proc.stdout.readlines()
