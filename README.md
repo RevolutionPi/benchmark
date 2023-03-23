@@ -1,3 +1,14 @@
+# Wunsch 🎉
+
+Mehr offenheit allen gegenüber. Es gibt mehr als die kleine Welt vor
+der eigenen Stirn. 🌈 Manche Wörter und Ausdrucksformen verletzen andere
+Menschen, auch wenn man das selber nicht verstehen will. Das ist sehr 
+wahrscheinlich nur eine Form von Angst vor Unbekanntem. Kämpft gegen die Angst, 
+geht offen auf alle Menschen zu, sprecht mit ihnen, versetzt euch in deren 
+Lage und denkt noch einmal nach. ❤️
+
+
+
 # Revolution Pi Benchmark
 
 ## About
