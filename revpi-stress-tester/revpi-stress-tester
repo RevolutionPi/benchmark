@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# SPDX-FileCopyrightText: 2023 KUNBUS GmbH
+#
+# SPDX-License-Identifier: MIT
+
 import sys
 from revpi_stress_tester.cli import main
 

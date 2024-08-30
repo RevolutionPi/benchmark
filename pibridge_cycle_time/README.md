@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 KUNBUS GmbH
+
+SPDX-License-Identifier: MIT
+-->
+
 # piBridge cycle time
 
 This utility is for measuring the cycle time on the piBridge. This is the time

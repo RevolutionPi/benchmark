@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023 KUNBUS GmbH
+#
+# SPDX-License-Identifier: MIT
+
 # -*- coding: utf-8 -*-
 """Setup-script for revpi-stress-tester."""
 __author__ = "Nicolai"

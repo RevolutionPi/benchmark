@@ -1,5 +1,9 @@
 #!/bin/env python3
 
+# SPDX-FileCopyrightText: 2022 KUNBUS GmbH
+#
+# SPDX-License-Identifier: MIT
+
 import subprocess
 import re
 

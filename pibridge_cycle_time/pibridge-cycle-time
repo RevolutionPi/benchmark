@@ -1,4 +1,9 @@
 #! /usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2022 KUNBUS GmbH
+#
+# SPDX-License-Identifier: MIT
+
 # -*- coding: utf-8 -*-
 """Test the cycle time of Revolution Pi piControl."""
 __author__ = "Sven Sager"

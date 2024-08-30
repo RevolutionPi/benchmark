@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: benchmark
+Upstream-Contact: KUNBUS GmbH <support@kunbus.com>
+Source: https://gitlab.com/revolutionpi/internal-tools/benchmark
+
+Files: Benchmark RevPi Core.ods
+Copyright: 2022 KUNBUS GmbH
+License: MIT

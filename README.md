@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022 KUNBUS GmbH
+
+SPDX-License-Identifier: MIT
+-->
+
 # Revolution Pi Benchmark
 
 ## About

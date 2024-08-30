@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2023 KUNBUS GmbH
+
+SPDX-License-Identifier: MIT
+-->
+
 # Hardware Stress Test for Revolution Pi
 
 This tool was developed to analyse the influence of different load scenarios on the temperature development of the RevPi. The CPU cores and network interfaces can be stressed individually or in combination. The tools `stress-ng` (CPU) and `iperf3` (network) are used for this purpose.

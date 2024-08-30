@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: 2023 KUNBUS GmbH
+#
 # SPDX-License-Identifier: MIT
-# Copyright 2023 KUNBUS GmbH
+
 from .__about__ import *
