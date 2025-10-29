@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from multiprocessing import Event, Process, Queue
 from queue import Empty
 from sys import stdout, stderr
-from timeit import default_timer
+from time import perf_counter
 
 QUEUE_WRITE_TIMEOUT = 0.2
 __version__ = "2025.10.29"
@@ -65,10 +65,10 @@ class TestProcess(Process):
     def run(self):
         cycles = 0
         proc_img = open("/dev/piControl0", "r+b", buffering=0)
-        start_time = default_timer()
+        start_time = perf_counter()
 
-        while default_timer() - start_time < args.runtime_sec and not self.exit_event.is_set():
-            ot = default_timer()
+        while perf_counter() - start_time < args.runtime_sec and not self.exit_event.is_set():
+            ot = perf_counter()
 
             # Read bytes
             proc_img.seek(0)
