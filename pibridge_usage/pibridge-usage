@@ -40,6 +40,12 @@ pargs.add_argument(
     help="Maximum number of milliseconds to wait for a single read/write operation (default: 5)",
 )
 pargs.add_argument(
+    "--no-wait",
+    action="store_true",
+    default=False,
+    help="Do not wait for the maximum number of milliseconds before next cycle, do the accesses as fast as possible",
+)
+pargs.add_argument(
     "-p",
     "--processes",
     type=int,
@@ -79,9 +85,15 @@ class TestProcess(Process):
                 proc_img.seek(0)
                 proc_img.write(buffer)
 
-            diff = default_timer() - ot
-            if diff > max_milliseconds:
-                self.q_runtime_fails.put_nowait(diff)
+            dm = divmod(ot - perf_counter(), max_seconds)
+            # For float the result is (q, a % b), where q is usually
+            # math.floor(a / b) but may be 1 less than that.
+            if dm[0] == -1.0:  # Cycle time not exceeded
+                if not args.no_wait:
+                    self.exit_event.wait(dm[1])
+            else:
+                diff = dm[0] * max_seconds + dm[1]
+                self.q_runtime_fails.put_nowait(diff * -1)
 
             cycles += 1
 
@@ -90,7 +102,7 @@ class TestProcess(Process):
 
 
 evt_exit = Event()
-max_milliseconds = args.max_milliseconds / 1000
+max_seconds = args.max_milliseconds / 1000
 lst_processes = []
 q_cycles = Queue()
 q_runtime_fails = Queue()
