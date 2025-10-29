@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+import signal
+from argparse import ArgumentParser
+from sys import stdout, stderr
+from threading import Event
+from timeit import default_timer
+
+__version__ = "2025.10.29"
+
+pargs = ArgumentParser()
+pargs.add_argument("--version", action="version", version=__version__)
+pargs.add_argument("-b", "--bytes", type=int, default=512)
+pargs.add_argument("-t", "--runtime-sec", type=int, default=60)
+pargs.add_argument("-rw", "--read-write", action="store_true", default=False)
+pargs.add_argument("-m", "--max-milliseconds", type=int, default=5)
+pargs.add_argument("-v", "--verbose", action="store_true", default=False)
+args = pargs.parse_args()
+
+cycles = 0
+evt_exit = Event()
+runtime_fails = []
+max_milliseconds = args.max_milliseconds / 1000
+proc_img = open("/dev/piControl0", "rb", buffering=0)
+start_time = default_timer()
+
+# Attach signals
+signal.signal(signal.SIGINT, lambda num, frame: evt_exit.set())
+signal.signal(signal.SIGTERM, lambda num, frame: evt_exit.set())
+
+# Start testing
+stdout.write(f"Starting a {args.runtime_sec} seconds test with the following parameters.\n")
+stdout.write(f"\tBytes: {args.bytes}\n")
+stdout.write(f"\tRead/Write: {args.read_write}\n")
+stdout.write(f"\tMax milliseconds: {args.max_milliseconds}\n")
+
+while default_timer() - start_time < args.runtime_sec and not evt_exit.is_set():
+    ot = default_timer()
+
+    # Read bytes
+    proc_img.seek(0)
+    buffer = proc_img.read(args.bytes)
+
+    if args.read_write:
+        # Write bytes
+        proc_img.seek(0)
+        proc_img.write(buffer)
+
+    diff = default_timer() - ot
+    if diff > max_milliseconds:
+        runtime_fails.append(diff)
+        stdout.write(f"\r{len(runtime_fails)} failures till now")
+
+    cycles += 1
+
+stdout.write("\r")
+
+test_duration = round(default_timer() - start_time, 1)
+if runtime_fails:
+    stderr.write(
+        f"During {test_duration} seconds we had {cycles} cycles "
+        f"and {len(runtime_fails)} with more than {args.max_milliseconds} ms.\n")
+    if args.verbose:
+        for fail in runtime_fails:
+            fail = round(fail * 1000, 1)
+            stderr.write(f"\t{fail} ms\n")
+    exit(1)
+else:
+    stdout.write("No runtime failures.\n")
+    exit(0)
