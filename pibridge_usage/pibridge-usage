@@ -11,17 +11,51 @@ __version__ = "2025.10.29"
 
 pargs = ArgumentParser()
 pargs.add_argument("--version", action="version", version=__version__)
-pargs.add_argument("-b", "--bytes", type=int, default=512)
-pargs.add_argument("-t", "--runtime-sec", type=int, default=60)
-pargs.add_argument("-w", "--read-write", action="store_true", default=False)
-pargs.add_argument("-m", "--max-milliseconds", type=int, default=5)
-pargs.add_argument("-p", "--processes", type=int, default=1)
-pargs.add_argument("-v", "--verbose", action="store_true", default=False)
+pargs.add_argument(
+    "-b",
+    "--bytes",
+    type=int,
+    default=512,
+    help="Number of bytes to read/write per cycle (default: 512)",
+)
+pargs.add_argument(
+    "-t",
+    "--runtime-sec",
+    type=int,
+    default=60,
+    help="Number of seconds to run the test (default: 60)",
+)
+pargs.add_argument(
+    "-w",
+    "--write",
+    action="store_true",
+    default=False,
+    help="Read/write bytes instead of just reading",
+)
+pargs.add_argument(
+    "-m",
+    "--max-milliseconds",
+    type=int,
+    default=5,
+    help="Maximum number of milliseconds to wait for a single read/write operation (default: 5)",
+)
+pargs.add_argument(
+    "-p",
+    "--processes",
+    type=int,
+    default=1,
+    help="Number of processes to run in parallel (default: 1)",
+)
+pargs.add_argument(
+    "-v",
+    "--verbose",
+    action="store_true",
+    default=False,
+)
 args = pargs.parse_args()
 
 
 class TestProcess(Process):
-
     def __init__(self, exit_event: Event, queue_cycles: Queue, queue_runtime_fails: Queue):
         super().__init__()
         self.exit_event = exit_event
@@ -40,7 +74,7 @@ class TestProcess(Process):
             proc_img.seek(0)
             buffer = proc_img.read(args.bytes)
 
-            if args.read_write:
+            if args.write:
                 # Write bytes
                 proc_img.seek(0)
                 proc_img.write(buffer)
@@ -69,7 +103,7 @@ signal.signal(signal.SIGTERM, lambda num, frame: evt_exit.set())
 # Start testing
 stdout.write(f"Starting a {args.runtime_sec} seconds test with the following parameters.\n")
 stdout.write(f"\tBytes: {args.bytes}\n")
-stdout.write(f"\tRead/Write: {args.read_write}\n")
+stdout.write(f"\tRead/Write: {args.write}\n")
 stdout.write(f"\tMax milliseconds: {args.max_milliseconds}\n")
 stdout.write(f"\tProcesses: {args.processes}\n")
 
@@ -100,7 +134,8 @@ while not q_cycles.empty():
 if runtime_fails:
     stderr.write(
         f"During {args.runtime_sec} seconds we had {cycle_sum} cycles "
-        f"and {len(runtime_fails)} with more than {args.max_milliseconds} ms.\n")
+        f"and {len(runtime_fails)} with more than {args.max_milliseconds} ms.\n"
+    )
     if args.verbose:
         for fail in runtime_fails:
             fail = round(fail * 1000, 1)
