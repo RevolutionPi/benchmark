@@ -9,7 +9,16 @@ from time import perf_counter
 QUEUE_WRITE_TIMEOUT = 0.2
 __version__ = "2025.10.29"
 
-pargs = ArgumentParser()
+pargs = ArgumentParser(
+    prog="pibridge-usage",
+    description="Test the pibridge usage by reading/writing bytes. "
+                "With this program, cyclic access to piControl0 can be simulated. "
+                "The access times of 'seek(0)' and 'read' are measured. Optionally, a "
+                "'write' can also be added, which contains an additional 'seek(0)'. "
+                "The accesses are executed in one or more processes and thus simulate the "
+                "'normal' access that programs such as CODESYS or RevPiModIO "
+                "(incl. Node-RED) execute."
+)
 pargs.add_argument("--version", action="version", version=__version__)
 pargs.add_argument(
     "-b",
@@ -144,9 +153,11 @@ while not q_cycles.empty():
     cycle_sum += q_cycles.get()
 
 if runtime_fails:
+    max_fail = round(max(runtime_fails) * 1000, 1)
     stderr.write(
         f"During {args.runtime_sec} seconds we had {cycle_sum} cycles "
         f"and {len(runtime_fails)} with more than {args.max_milliseconds} ms.\n"
+        f"The maximum was {max_fail} ms.\n"
     )
     if args.verbose:
         for fail in runtime_fails:
