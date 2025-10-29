@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2025 KUNBUS GmbH
+# SPDX-License-Identifier: MIT
+
 import signal
 from argparse import ArgumentParser
 from multiprocessing import Event, Process, Queue
