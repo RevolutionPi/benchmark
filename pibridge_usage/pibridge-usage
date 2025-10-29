@@ -1,27 +1,66 @@
 #!/usr/bin/env python3
 import signal
 from argparse import ArgumentParser
+from multiprocessing import Event, Process, Queue
+from queue import Empty
 from sys import stdout, stderr
-from threading import Event
 from timeit import default_timer
 
+QUEUE_WRITE_TIMEOUT = 0.2
 __version__ = "2025.10.29"
 
 pargs = ArgumentParser()
 pargs.add_argument("--version", action="version", version=__version__)
 pargs.add_argument("-b", "--bytes", type=int, default=512)
 pargs.add_argument("-t", "--runtime-sec", type=int, default=60)
-pargs.add_argument("-rw", "--read-write", action="store_true", default=False)
+pargs.add_argument("-w", "--read-write", action="store_true", default=False)
 pargs.add_argument("-m", "--max-milliseconds", type=int, default=5)
+pargs.add_argument("-p", "--processes", type=int, default=1)
 pargs.add_argument("-v", "--verbose", action="store_true", default=False)
 args = pargs.parse_args()
 
-cycles = 0
+
+class TestProcess(Process):
+
+    def __init__(self, exit_event: Event, queue_cycles: Queue, queue_runtime_fails: Queue):
+        super().__init__()
+        self.exit_event = exit_event
+        self.q_cycles = queue_cycles
+        self.q_runtime_fails = queue_runtime_fails
+
+    def run(self):
+        cycles = 0
+        proc_img = open("/dev/piControl0", "r+b", buffering=0)
+        start_time = default_timer()
+
+        while default_timer() - start_time < args.runtime_sec and not self.exit_event.is_set():
+            ot = default_timer()
+
+            # Read bytes
+            proc_img.seek(0)
+            buffer = proc_img.read(args.bytes)
+
+            if args.read_write:
+                # Write bytes
+                proc_img.seek(0)
+                proc_img.write(buffer)
+
+            diff = default_timer() - ot
+            if diff > max_milliseconds:
+                self.q_runtime_fails.put_nowait(diff)
+
+            cycles += 1
+
+        proc_img.close()
+        self.q_cycles.put_nowait(cycles)
+
+
 evt_exit = Event()
-runtime_fails = []
 max_milliseconds = args.max_milliseconds / 1000
-proc_img = open("/dev/piControl0", "rb", buffering=0)
-start_time = default_timer()
+lst_processes = []
+q_cycles = Queue()
+q_runtime_fails = Queue()
+runtime_fails = []
 
 # Attach signals
 signal.signal(signal.SIGINT, lambda num, frame: evt_exit.set())
@@ -32,32 +71,35 @@ stdout.write(f"Starting a {args.runtime_sec} seconds test with the following par
 stdout.write(f"\tBytes: {args.bytes}\n")
 stdout.write(f"\tRead/Write: {args.read_write}\n")
 stdout.write(f"\tMax milliseconds: {args.max_milliseconds}\n")
+stdout.write(f"\tProcesses: {args.processes}\n")
 
-while default_timer() - start_time < args.runtime_sec and not evt_exit.is_set():
-    ot = default_timer()
+# Create processes and start them
+for _ in range(args.processes):
+    lst_processes.append(TestProcess(evt_exit, q_cycles, q_runtime_fails))
+for process in lst_processes:
+    process.start()
 
-    # Read bytes
-    proc_img.seek(0)
-    buffer = proc_img.read(args.bytes)
+# Read the queue of the processes and print outputs
+while any(multi_proc.is_alive() for multi_proc in lst_processes):
+    try:
+        fail = q_runtime_fails.get(timeout=QUEUE_WRITE_TIMEOUT)
+        runtime_fails.append(fail)
 
-    if args.read_write:
-        # Write bytes
-        proc_img.seek(0)
-        proc_img.write(buffer)
-
-    diff = default_timer() - ot
-    if diff > max_milliseconds:
-        runtime_fails.append(diff)
-        stdout.write(f"\r{len(runtime_fails)} failures till now")
-
-    cycles += 1
+        fail = round(fail * 1000, 1)
+        stdout.write(f"\r{len(runtime_fails)} failures till now. Last failure: {fail:5.1f} ms")
+    except Empty:
+        if evt_exit.is_set():
+            break
 
 stdout.write("\r")
 
-test_duration = round(default_timer() - start_time, 1)
+cycle_sum = 0
+while not q_cycles.empty():
+    cycle_sum += q_cycles.get()
+
 if runtime_fails:
     stderr.write(
-        f"During {test_duration} seconds we had {cycles} cycles "
+        f"During {args.runtime_sec} seconds we had {cycle_sum} cycles "
         f"and {len(runtime_fails)} with more than {args.max_milliseconds} ms.\n")
     if args.verbose:
         for fail in runtime_fails:
