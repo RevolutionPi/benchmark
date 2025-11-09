@@ -13,8 +13,8 @@ QUEUE_WRITE_TIMEOUT = 0.2
 __version__ = "2025.10.29"
 
 pargs = ArgumentParser(
-    prog="pibridge-usage",
-    description="Test the pibridge usage by reading/writing bytes. "
+    prog="picontrol-usage",
+    description="Test the picontrol device by reading/writing bytes. "
                 "With this program, cyclic access to piControl0 can be simulated. "
                 "The access times of 'seek(0)' and 'read' are measured. Optionally, a "
                 "'write' can also be added, which contains an additional 'seek(0)'. "
