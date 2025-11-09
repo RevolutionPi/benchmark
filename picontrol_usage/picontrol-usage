@@ -4,13 +4,17 @@
 
 import signal
 from argparse import ArgumentParser
-from multiprocessing import Event, Process, Queue
+from multiprocessing import Process, Queue
 from queue import Empty
 from sys import stdout, stderr
+from threading import Event
 from time import perf_counter
 
 QUEUE_WRITE_TIMEOUT = 0.2
-__version__ = "2025.10.29"
+__version__ = "2025.11.09"
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# region #      REGION: Argument parser
 
 pargs = ArgumentParser(
     prog="picontrol-usage",
@@ -20,7 +24,7 @@ pargs = ArgumentParser(
                 "'write' can also be added, which contains an additional 'seek(0)'. "
                 "The accesses are executed in one or more processes and thus simulate the "
                 "'normal' access that programs such as CODESYS or RevPiModIO "
-                "(incl. Node-RED) execute."
+                "(incl. Node-RED) execute.",
 )
 pargs.add_argument("--version", action="version", version=__version__)
 pargs.add_argument(
@@ -73,19 +77,26 @@ pargs.add_argument(
 args = pargs.parse_args()
 
 
+# endregion # # # # #
+
+
 class TestProcess(Process):
-    def __init__(self, exit_event: Event, queue_cycles: Queue, queue_runtime_fails: Queue):
+    def __init__(self, queue_cycles: Queue, queue_runtime_fails: Queue):
         super().__init__()
-        self.exit_event = exit_event
         self.q_cycles = queue_cycles
         self.q_runtime_fails = queue_runtime_fails
 
     def run(self):
         cycles = 0
+        exit_event = Event()
         proc_img = open("/dev/piControl0", "r+b", buffering=0)
         start_time = perf_counter()
 
-        while perf_counter() - start_time < args.runtime_sec and not self.exit_event.is_set():
+        # Attach signals just for this process
+        signal.signal(signal.SIGINT, lambda num, frame: exit_event.set())
+        signal.signal(signal.SIGTERM, lambda num, frame: exit_event.set())
+
+        while perf_counter() - start_time < args.runtime_sec and not exit_event.is_set():
             ot = perf_counter()
 
             # Read bytes
@@ -102,7 +113,7 @@ class TestProcess(Process):
             # math.floor(a / b) but may be 1 less than that.
             if dm[0] == -1.0:  # Cycle time not exceeded
                 if not args.no_wait:
-                    self.exit_event.wait(dm[1])
+                    exit_event.wait(dm[1])
             else:
                 diff = dm[0] * max_seconds + dm[1]
                 self.q_runtime_fails.put_nowait(diff * -1)
@@ -133,7 +144,7 @@ stdout.write(f"\tProcesses: {args.processes}\n")
 
 # Create processes and start them
 for _ in range(args.processes):
-    lst_processes.append(TestProcess(evt_exit, q_cycles, q_runtime_fails))
+    lst_processes.append(TestProcess(q_cycles, q_runtime_fails))
 for process in lst_processes:
     process.start()
 
@@ -150,6 +161,19 @@ while any(multi_proc.is_alive() for multi_proc in lst_processes):
             break
 
 stdout.write("\r")
+
+# Gracefully terminate all processes
+for process in lst_processes:
+    if process.is_alive():
+        process.terminate()  # Sendet SIGTERM
+
+# Wait for processes to finish with timeout
+for process in lst_processes:
+    process.join(timeout=2.0)
+    if process.is_alive():
+        # Force kill if still alive after timeout
+        process.kill()  # Sendet SIGKILL
+        process.join()
 
 cycle_sum = 0
 while not q_cycles.empty():
